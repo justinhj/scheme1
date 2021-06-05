@@ -6,6 +6,7 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import Numeric
 
 data LispVal = Atom String
+             | Character Char
              | List [LispVal]
              | DottedList [LispVal] LispVal
              | Number Integer
@@ -53,6 +54,13 @@ parseNumber =
     parseOctal <|>
     (many1 digit >>= return . Number . read)
 
+parseCharacter :: Parser LispVal
+parseCharacter = 
+    do
+        try (string "#\\")
+        c <- try (letter <|> digit)
+        return $ Character c
+
 -- parse an octal number
 parseOctal :: Parser LispVal
 parseOctal =
@@ -70,9 +78,11 @@ parseHex =
       return $ Number nums
 
 parseExpr :: Parser LispVal
-parseExpr = parseNumber
-         <|> parseString
-         <|> parseAtom
+parseExpr = 
+        parseCharacter <|>
+        parseNumber <|> 
+        parseString <|>
+        parseAtom
 
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
