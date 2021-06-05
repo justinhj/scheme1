@@ -4,6 +4,9 @@ import System.Environment
 import System.IO
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Numeric
+-- import qualified Data.Map as M
+import Control.Monad
+import Data.Functor
 
 data LispVal = Atom String
              | Character Char
@@ -15,7 +18,7 @@ data LispVal = Atom String
   deriving Show
 
 parseStringChar :: Parser Char
-parseStringChar = (char '\\' >> char '"') <|> (noneOf "\"")
+parseStringChar = (char '\\' >> char '"') <|> noneOf "\""
 
 parseString :: Parser LispVal
 parseString =
@@ -39,27 +42,30 @@ parseAtom =
 -- parseNumber :: Parser LispVal
 -- parseNumber = liftM (Number . read) $ many1 digit
 
--- ex1.1 parseNumber using do
--- parseNumber :: Parser LispVal
--- parseNumber =
---    do
---       digits <- many1 digit
---       return $ (Number . read) digits
+-- given a map of character names and the char they map to
+-- parse them (todo)
 
--- ex1.2 with >>=
-parseNumber :: Parser LispVal
---parseNumber = many1 digit >>= (\a -> return (Number . read) a)
-parseNumber =
-    parseHex <|> 
-    parseOctal <|>
-    (many1 digit >>= return . Number . read)
+parseNamedCharacter :: Parser LispVal
+parseNamedCharacter =
+    do 
+        try $ string "#\\space"
+        return $ Character ' '
 
-parseCharacter :: Parser LispVal
-parseCharacter = 
+parseCharacterSingle :: Parser LispVal
+parseCharacterSingle = 
     do
         try (string "#\\")
         c <- try (letter <|> digit)
         return $ Character c
+
+parseCharacter :: Parser LispVal
+parseCharacter = parseNamedCharacter <|> parseCharacterSingle
+
+parseNumber :: Parser LispVal
+parseNumber =
+    parseHex <|> 
+    parseOctal <|>
+    (many1 digit <&> Number . read)
 
 -- parse an octal number
 parseOctal :: Parser LispVal
@@ -78,11 +84,14 @@ parseHex =
       return $ Number nums
 
 parseExpr :: Parser LispVal
-parseExpr = 
-        parseCharacter <|>
-        parseNumber <|> 
-        parseString <|>
-        parseAtom
+parseExpr = parseString
+         <|> parseNumber
+         <|> parseQuoted
+         <|> parseAtom
+         <|> do char '('
+                x <- try parseList <|> parseDottedList
+                char ')'
+                return x
 
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
@@ -95,30 +104,27 @@ readExpr input = case parse parseExpr "lisp" input of
 spaces :: Parser ()
 spaces = skipMany1 space
 
+parseList :: Parser LispVal
+parseList = List <$> sepBy parseExpr spaces
+
+parseDottedList :: Parser LispVal
+parseDottedList = do
+    head <- endBy parseExpr spaces
+    tail <- char '.' >> spaces >> parseExpr
+    return $ DottedList head tail
+
+parseQuoted :: Parser LispVal
+parseQuoted = do
+    char '\''
+    x <- parseExpr
+    return $ List [Atom "quote", x]
+
+-- Parse the backtick (quasiquote)
+
+
 main :: IO ()
 main =
     do
         (expr: _) <- getArgs
         putStrLn (readExpr expr)
-
--- prompt for two numbers and add them 
-main3 :: IO ()
-main3 = 
-    do
-        putStr "Enter number: "
-        hFlush stdout
-        a <- getLine
-        _ <- putStr "Enter number: "
-        hFlush stdout
-        b <- getLine
-        putStrLn(show(read(a) + read(b)))
-
--- Read two args from input
-main2 :: IO ()
-main2 = 
-    do
-        args <- getArgs
-        let a = read(args !! 0)
-            b = read(args !! 1)
-        putStrLn(show(a + b))
 
