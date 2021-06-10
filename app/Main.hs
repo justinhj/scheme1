@@ -86,7 +86,10 @@ parseHex =
 parseExpr :: Parser LispVal
 parseExpr = parseString
          <|> parseNumber
+         <|> parseSplice
          <|> parseQuoted
+         <|> parseUnquote
+         <|> parseBackQuoted
          <|> parseAtom
          <|> do char '('
                 x <- try parseList <|> parseDottedList
@@ -112,6 +115,24 @@ parseDottedList = do
     head <- endBy parseExpr spaces
     tail <- char '.' >> spaces >> parseExpr
     return $ DottedList head tail
+
+parseSplice :: Parser LispVal
+parseSplice = do
+    try $ string ",@"
+    x <- parseExpr
+    return $ List [Atom "splice", x]
+
+parseUnquote :: Parser LispVal
+parseUnquote = do
+    char ','
+    x <- parseExpr
+    return $ List [Atom "unquote", x]
+
+parseBackQuoted :: Parser LispVal
+parseBackQuoted = do
+    char '`'
+    x <- parseExpr
+    return $ List [Atom "backquote", x]
 
 parseQuoted :: Parser LispVal
 parseQuoted = do
